@@ -13,6 +13,11 @@ from zipline.utils.calendars.us_holidays import (
     Christmas
 )
 
+# Number of hours of offset between the open and close times dictated by this
+# calendar versus the 6:30am to 5:00pm times used by the simulation clock.
+FUTURES_OPEN_TIME_OFFSET = 12.5
+FUTURES_CLOSE_TIME_OFFSET = -1
+
 
 class QuantopianUSFuturesCalendar(TradingCalendar):
     """Synthetic calendar for trading US futures.

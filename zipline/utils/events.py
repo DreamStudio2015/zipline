@@ -23,6 +23,10 @@ import pandas as pd
 import pytz
 from toolz import curry
 
+from zipline.utils.calendars.us_futures_calendar import (
+    FUTURES_CLOSE_TIME_OFFSET,
+    FUTURES_OPEN_TIME_OFFSET,
+)
 from zipline.utils.input_validation import preprocess
 from zipline.utils.memoize import lazyval
 
@@ -353,6 +357,13 @@ class AfterOpen(StatelessRule):
             self.cal.open_and_close_for_session(
                 self.cal.minute_to_session_label(dt)
             )
+
+        # When using the futures calendar, adjust the open and close times to
+        # conform to 6:30am to 5:00pm.
+        if self.cal.name == 'us_futures':
+            self._period_start += pd.Timedelta(hours=FUTURES_OPEN_TIME_OFFSET)
+            self._period_close += pd.Timedelta(hours=FUTURES_CLOSE_TIME_OFFSET)
+
         self._period_end = self._period_start + self.offset - self._one_minute
 
     def should_trigger(self, dt):

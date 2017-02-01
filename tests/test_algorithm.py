@@ -3502,6 +3502,96 @@ class TestFutureFlip(WithDataPortal, WithSimParams, ZiplineTestCase):
                 format(i, actual_position, expected_positions[i]))
 
 
+class TestFuturesAlgo(WithDataPortal, WithSimParams, ZiplineTestCase):
+    START_DATE = pd.Timestamp('2016-01-06', tz='utc')
+    END_DATE = pd.Timestamp('2016-01-07', tz='utc')
+    FUTURE_MINUTE_BAR_START_DATE = pd.Timestamp('2016-01-05', tz='UTC')
+
+    SIM_PARAMS_DATA_FREQUENCY = 'minute'
+
+    TRADING_CALENDAR_STRS = ('us_futures',)
+    TRADING_CALENDAR_PRIMARY_CAL = 'us_futures'
+
+    @classmethod
+    def make_futures_info(cls):
+        return pd.DataFrame.from_dict(
+            {
+                1: {
+                    'symbol': 'CLG16',
+                    'root_symbol': 'CL',
+                    'start_date': pd.Timestamp('2015-12-01', tz='UTC'),
+                    'notice_date': pd.Timestamp('2016-01-20', tz='UTC'),
+                    'expiration_date': pd.Timestamp('2016-02-19', tz='UTC'),
+                    'auto_close_date': pd.Timestamp('2016-01-18', tz='UTC'),
+                    'exchange': 'TEST',
+                },
+            },
+            orient='index',
+        )
+
+    def test_futures_history(self):
+        algo_code = dedent(
+            """
+            from datetime import time
+            from zipline.api import (
+                date_rules,
+                get_datetime,
+                schedule_function,
+                sid,
+                time_rules,
+            )
+
+            def initialize(context):
+                context.history_values = []
+
+                schedule_function(
+                    make_history_call,
+                    date_rules.every_day(),
+                    time_rules.market_open(),
+                )
+
+            def make_history_call(context, data):
+                # Ensure that the market open is 6:31am.
+                assert get_datetime().time() == time(11, 31)
+                context.history_values.append(
+                    data.history(sid(1), 'close', 5, '1m')
+                )
+            """
+        )
+
+        algo = TradingAlgorithm(
+            script=algo_code,
+            sim_params=self.sim_params,
+            env=self.env,
+            trading_calendar=get_calendar('us_futures'),
+        )
+        algo.run(self.data_portal)
+
+        # Assert that we were able to retrieve history data for minutes outside
+        # of the 6:31am to 5:00pm futures open times.
+        np.testing.assert_array_equal(
+            algo.history_values[0].index,
+            pd.date_range(
+                '2016-01-06 11:27', '2016-01-06 11:31', freq='min', tz='UTC',
+            ),
+        )
+        np.testing.assert_array_equal(
+            algo.history_values[1].index,
+            pd.date_range(
+                '2016-01-07 11:27', '2016-01-07 11:31', freq='min', tz='UTC',
+            ),
+        )
+
+        # Expected prices here are given by the range values created by the
+        # default `make_future_minute_bar_data` method.
+        np.testing.assert_array_equal(
+            algo.history_values[0].values, map(float, range(2196, 2201)),
+        )
+        np.testing.assert_array_equal(
+            algo.history_values[1].values, map(float, range(3636, 3641)),
+        )
+
+
 class TestTradingAlgorithm(ZiplineTestCase):
     def test_analyze_called(self):
         self.perf_ref = None

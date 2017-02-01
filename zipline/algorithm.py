@@ -115,6 +115,10 @@ from zipline.utils.input_validation import (
     optional,
 )
 from zipline.utils.calendars.trading_calendar import days_at_time
+from zipline.utils.calendars.us_futures_calendar import (
+    FUTURES_CLOSE_TIME_OFFSET,
+    FUTURES_OPEN_TIME_OFFSET,
+)
 from zipline.utils.cache import CachedObject, Expired
 from zipline.utils.calendars import get_calendar
 from zipline.utils.compat import exc_clear
@@ -530,6 +534,12 @@ class TradingAlgorithm(object):
             # in daily mode, we want to have one bar per session, timestamped
             # as the last minute of the session.
             market_opens = market_closes
+
+        # When using the futures calendar, adjust the open and close times used
+        # by the simulation clock to be 6:30am to 5:00pm.
+        if self.trading_calendar.name == 'us_futures':
+            market_opens += pd.Timedelta(hours=FUTURES_OPEN_TIME_OFFSET)
+            market_closes += pd.Timedelta(hours=FUTURES_CLOSE_TIME_OFFSET)
 
         # FIXME generalize these values
         before_trading_start_minutes = days_at_time(
